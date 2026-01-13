@@ -1,0 +1,42 @@
+# Environment variables
+.env
+.env.local
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+telegram2webhook
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Dependency directories
+vendor/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Debug files
+debug
+__debug_bin
+
+# Log files
+*.log
+
+# Temporary files
+tmp/
+temp/
