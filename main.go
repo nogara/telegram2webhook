@@ -11,10 +11,14 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+type BotConfig struct {
+	TelegramToken string `json:"token"`
+	WebhookURL    string `json:"webhook"`
+}
+
 type Config struct {
-	TelegramToken string
-	WebhookURL    string
-	Debug         bool
+	Bots  []BotConfig
+	Debug bool
 }
 
 type WebhookPayload struct {
@@ -37,6 +41,28 @@ type From struct {
 }
 
 func loadConfig() (*Config, error) {
+	debug := os.Getenv("DEBUG") == "true"
+
+	pairsJSON := os.Getenv("TELEGRAM_WEBHOOK_PAIRS")
+	if pairsJSON != "" {
+		var bots []BotConfig
+		if err := json.Unmarshal([]byte(pairsJSON), &bots); err != nil {
+			return nil, fmt.Errorf("failed to parse TELEGRAM_WEBHOOK_PAIRS: %w", err)
+		}
+		if len(bots) == 0 {
+			return nil, fmt.Errorf("TELEGRAM_WEBHOOK_PAIRS must include at least one bot")
+		}
+		for index, bot := range bots {
+			if bot.TelegramToken == "" {
+				return nil, fmt.Errorf("TELEGRAM_WEBHOOK_PAIRS[%d] token is required", index)
+			}
+			if bot.WebhookURL == "" {
+				return nil, fmt.Errorf("TELEGRAM_WEBHOOK_PAIRS[%d] webhook is required", index)
+			}
+		}
+		return &Config{Bots: bots, Debug: debug}, nil
+	}
+
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 	if token == "" {
 		return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN environment variable is not set")
@@ -47,12 +73,14 @@ func loadConfig() (*Config, error) {
 		return nil, fmt.Errorf("N8N_WEBHOOK_URL environment variable is not set")
 	}
 
-	debug := os.Getenv("DEBUG") == "true"
-
 	return &Config{
-		TelegramToken: token,
-		WebhookURL:    webhookURL,
-		Debug:         debug,
+		Bots: []BotConfig{
+			{
+				TelegramToken: token,
+				WebhookURL:    webhookURL,
+			},
+		},
+		Debug: debug,
 	}, nil
 }
 
@@ -84,48 +112,55 @@ func main() {
 		log.Fatalf("Configuration error: %v", err)
 	}
 
-	bot, err := tgbotapi.NewBotAPI(config.TelegramToken)
-	if err != nil {
-		log.Fatalf("Failed to create bot: %v", err)
+	for index, botConfig := range config.Bots {
+		botIndex := index + 1
+		go func(cfg BotConfig, label int) {
+			bot, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
+			if err != nil {
+				log.Fatalf("Failed to create bot %d: %v", label, err)
+			}
+
+			bot.Debug = config.Debug
+
+			log.Printf("Bot %d authorized on account %s", label, bot.Self.UserName)
+			log.Printf("Bot %d webhook URL: %s", label, cfg.WebhookURL)
+
+			u := tgbotapi.NewUpdate(0)
+			u.Timeout = 60
+
+			updates := bot.GetUpdatesChan(u)
+
+			log.Printf("Bot %d listening for messages...", label)
+
+			for update := range updates {
+				if update.Message == nil {
+					continue
+				}
+
+				log.Printf("Bot %d received message from %s: %s", label, update.Message.From.UserName, update.Message.Text)
+
+				payload := WebhookPayload{
+					Message: Message{
+						Text: update.Message.Text,
+						Chat: Chat{
+							ID: update.Message.Chat.ID,
+						},
+						From: From{
+							Username:  update.Message.From.UserName,
+							FirstName: update.Message.From.FirstName,
+						},
+					},
+				}
+
+				if err := sendToWebhook(cfg.WebhookURL, payload); err != nil {
+					log.Printf("Bot %d error sending to webhook: %v", label, err)
+					continue
+				}
+
+				log.Printf("Bot %d message forwarded successfully", label)
+			}
+		}(botConfig, botIndex)
 	}
 
-	bot.Debug = config.Debug
-
-	log.Printf("Authorized on account %s", bot.Self.UserName)
-	log.Printf("Webhook URL: %s", config.WebhookURL)
-
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
-
-	updates := bot.GetUpdatesChan(u)
-
-	log.Println("Listening for messages...")
-
-	for update := range updates {
-		if update.Message == nil {
-			continue
-		}
-
-		log.Printf("Received message from %s: %s", update.Message.From.UserName, update.Message.Text)
-
-		payload := WebhookPayload{
-			Message: Message{
-				Text: update.Message.Text,
-				Chat: Chat{
-					ID: update.Message.Chat.ID,
-				},
-				From: From{
-					Username:  update.Message.From.UserName,
-					FirstName: update.Message.From.FirstName,
-				},
-			},
-		}
-
-		if err := sendToWebhook(config.WebhookURL, payload); err != nil {
-			log.Printf("Error sending to webhook: %v", err)
-			continue
-		}
-
-		log.Printf("Message forwarded successfully")
-	}
+	select {}
 }

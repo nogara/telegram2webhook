@@ -24,9 +24,18 @@ The application is configured using environment variables:
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `TELEGRAM_BOT_TOKEN` | Your Telegram bot token from BotFather | Yes |
-| `N8N_WEBHOOK_URL` | The n8n webhook endpoint URL | Yes |
+| `TELEGRAM_WEBHOOK_PAIRS` | JSON array of `{ "token": "...", "webhook": "..." }` objects | No |
+| `TELEGRAM_BOT_TOKEN` | Your Telegram bot token from BotFather | Yes (if no pairs) |
+| `N8N_WEBHOOK_URL` | The n8n webhook endpoint URL | Yes (if no pairs) |
 | `DEBUG` | Enable debug logging (true/false) | No (default: false) |
+
+When `TELEGRAM_WEBHOOK_PAIRS` is set, it takes precedence and lets you run multiple bots with different webhooks.
+
+Example:
+
+```bash
+export TELEGRAM_WEBHOOK_PAIRS='[{"token":"bot_token_1","webhook":"https://your-n8n.com/webhook/one"},{"token":"bot_token_2","webhook":"https://your-n8n.com/webhook/two"}]'
+```
 
 ## Local Development
 
