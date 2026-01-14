@@ -82,8 +82,7 @@ docker build -t telegram2webhook .
 ```bash
 docker run -d \
   --name telegram2webhook \
-  -e TELEGRAM_BOT_TOKEN=your_token_here \
-  -e N8N_WEBHOOK_URL=https://your-n8n.com/webhook/xxx \
+  -e TELEGRAM_WEBHOOK_PAIRS='[{"token":"bot_token_1","webhook":"https://your-n8n.com/webhook/one"},{"token":"bot_token_2","webhook":"https://your-n8n.com/webhook/two"}]' \
   -e DEBUG=false \
   --restart unless-stopped \
   telegram2webhook
@@ -101,8 +100,7 @@ services:
     build: .
     container_name: telegram2webhook
     environment:
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - TELEGRAM_WEBHOOK_PAIRS=${TELEGRAM_WEBHOOK_PAIRS}
       - DEBUG=${DEBUG:-false}
     restart: unless-stopped
 ```
